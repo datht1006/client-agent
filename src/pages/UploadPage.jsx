@@ -23,10 +23,10 @@ export default function UploadPage() {
     if (!file) return;
 
     // limit size
-    if (file.size > 5 * 1024 * 1024) {
-      message.error("File > 5MB, quá nặng!");
-      return;
-    }
+    // if (file.size > 5 * 1024 * 1024) {
+    //   message.error("File > 5MB, quá nặng!");
+    //   return;
+    // }
 
     const formData = new FormData();
     formData.append("file", file);
