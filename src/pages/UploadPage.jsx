@@ -73,16 +73,16 @@ export default function UploadPage() {
       title: "So sánh",
       width: 300,
       fixed: "right",
-      render: (_, record) => (
-        <div className="text-xs">
-          <div className="text-red-500">
-            ❌ {record?.ten_vat_tu_chuan_khong_gioi_han_ky_tu || "--"}
-          </div>
-          <div className="text-green-600">
-            ✅ {record?.material_description || "--"}
-          </div>
-        </div>
-      ),
+      // render: (_, record) => (
+      //   <div className="text-xs">
+      //     <div className="text-red-500">
+      //       ❌ {record?.ten_vat_tu_chuan_khong_gioi_han_ky_tu || "--"}
+      //     </div>
+      //     <div className="text-green-600">
+      //       ✅ {record?.material_description || "--"}
+      //     </div>
+      //   </div>
+      // ),
     });
 
     return baseColumns;
