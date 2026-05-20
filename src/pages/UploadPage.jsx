@@ -48,6 +48,128 @@ function splitMessage(value) {
     .filter(Boolean);
 }
 
+function getFirst(record, keys) {
+  for (const key of keys) {
+    const value = record?.[key];
+
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      return value;
+    }
+  }
+
+  return "";
+}
+
+function getByContains(record, keywords) {
+  const keys = Object.keys(record || {});
+
+  for (const key of keys) {
+    const lowerKey = key.toLowerCase();
+
+    const ok = keywords.every((kw) =>
+      lowerKey.includes(String(kw).toLowerCase())
+    );
+
+    if (ok) {
+      const value = record[key];
+
+      if (value !== undefined && value !== null && String(value).trim() !== "") {
+        return value;
+      }
+    }
+  }
+
+  return "";
+}
+
+function getShortName(record) {
+  return (
+    getFirst(record, [
+      "ten_goi_vat_tu",
+      "Tên gọi vật tư",
+      "Tên gọi vật tư(*) Cột cần sửa",
+      "src_Tên gọi vật tư",
+      "src_Tên gọi vật tư(*) Cột cần sửa",
+      "src_ten_goi_vat_tu",
+    ]) ||
+    getByContains(record, ["tên gọi", "vật tư"]) ||
+    getByContains(record, ["ten goi", "vat tu"])
+  );
+}
+
+function getFullName(record) {
+  return (
+    getFirst(record, [
+      "ten_vat_tu_chuan",
+      "Tên vật tư chuẩn hóa",
+      "Tên vật tư chuẩn hóa không giới hạn ký tự Cột cần sửa",
+      "Mô tả Tên hàng hóa, dịch vụ CHUẨN HÓA",
+      "src_Tên vật tư chuẩn hóa",
+      "src_Tên vật tư chuẩn hóa không giới hạn ký tự Cột cần sửa",
+      "src_Mô tả Tên hàng hóa, dịch vụ CHUẨN HÓA",
+      "src_ten_vat_tu_chuan",
+    ]) ||
+    getByContains(record, ["chuẩn hóa"]) ||
+    getByContains(record, ["chuan hoa"])
+  );
+}
+
+function getErrorValue(record) {
+  return (
+    getFirst(record, [
+      "loi_can_sua",
+      "Lỗi cần sửa",
+      "errors",
+      "error",
+      "loi",
+      "src_loi_can_sua",
+    ]) ||
+    getByContains(record, ["lỗi"]) ||
+    getByContains(record, ["loi"])
+  );
+}
+
+function getWarningValue(record) {
+  return (
+    getFirst(record, [
+      "canh_bao",
+      "Cảnh báo",
+      "warnings",
+      "warning",
+      "src_canh_bao",
+    ]) ||
+    getByContains(record, ["cảnh báo"]) ||
+    getByContains(record, ["canh bao"])
+  );
+}
+
+function getCol(record, keys, containsList = []) {
+  const direct = getFirst(record, keys);
+
+  if (direct) return direct;
+
+  for (const keywords of containsList) {
+    const value = getByContains(record, keywords);
+
+    if (value) return value;
+  }
+
+  return "";
+}
+
+function normalizeStatus(record) {
+  const raw = getFirst(record, ["status", "Status", "trang_thai", "Trạng thái"]);
+  const errorValue = getErrorValue(record);
+  const warningValue = getWarningValue(record);
+
+  if (raw) return raw;
+
+  if (errorValue) return "CAN_TAO_MOI_NHUNG_CAN_SUA";
+  if (warningValue) return "CAN_TAO_MOI_CAN_XEM_LAI";
+
+  return "CAN_TAO_MOI_DAT";
+}
+
 function StatusTag({ status }) {
   const cfg = STATUS_CONFIG[status] || {
     color: "default",
@@ -86,15 +208,15 @@ export default function UploadPage() {
     const total = data.length;
 
     const needFix = data.filter(
-      (x) => x.status === "CAN_TAO_MOI_NHUNG_CAN_SUA"
+      (x) => normalizeStatus(x) === "CAN_TAO_MOI_NHUNG_CAN_SUA"
     ).length;
 
     const needReview = data.filter(
-      (x) => x.status === "CAN_TAO_MOI_CAN_XEM_LAI"
+      (x) => normalizeStatus(x) === "CAN_TAO_MOI_CAN_XEM_LAI"
     ).length;
 
     const ok = data.filter(
-      (x) => x.status === "CAN_TAO_MOI_DAT"
+      (x) => normalizeStatus(x) === "CAN_TAO_MOI_DAT"
     ).length;
 
     return {
@@ -143,7 +265,6 @@ export default function UploadPage() {
       setSummary({
         type: "success",
         message: `Upload OK. Tổng dòng cần check: ${result.total || 0}`,
-        outputFile: result.output_file,
       });
 
       message.success("Upload OK");
@@ -187,53 +308,169 @@ export default function UploadPage() {
         { text: "CẦN XEM LẠI", value: "CAN_TAO_MOI_CAN_XEM_LAI" },
         { text: "CẦN SỬA", value: "CAN_TAO_MOI_NHUNG_CAN_SUA" },
       ],
-      onFilter: (value, record) => record.status === value,
-      render: (status) => <StatusTag status={status} />,
+      onFilter: (value, record) => normalizeStatus(record) === value,
+      render: (_, record) => <StatusTag status={normalizeStatus(record)} />,
     },
     {
       title: "Lỗi cần sửa",
       dataIndex: "loi_can_sua",
       width: 360,
-      render: (v) => <MessageList value={v} type="error" />,
+      render: (_, record) => <MessageList value={getErrorValue(record)} type="error" />,
     },
     {
       title: "Cảnh báo",
       dataIndex: "canh_bao",
       width: 420,
-      render: (v) => <MessageList value={v} type="warning" />,
+      render: (_, record) => <MessageList value={getWarningValue(record)} type="warning" />,
     },
     {
-      title: "Tên gọi vật tư",
+      title: "Tên ngắn / tên gọi vật tư",
       dataIndex: "ten_goi_vat_tu",
-      width: 280,
-      ellipsis: true,
-      render: (v) => safeText(v),
+      width: 420,
+      render: (_, record) => safeText(getShortName(record)),
     },
     {
-      title: "Tên chuẩn hóa",
+      title: "Tên dài / tên chuẩn hóa",
       dataIndex: "ten_vat_tu_chuan",
-      width: 320,
-      ellipsis: true,
-      render: (v) => safeText(v),
+      width: 520,
+      render: (_, record) => safeText(getFullName(record)),
     },
     {
       title: "ĐVT hiện tại",
       dataIndex: "don_vi_hien_tai",
-      width: 120,
-      render: (v) => safeText(v),
+      width: 130,
+      render: (_, record) =>
+        safeText(
+          getCol(
+            record,
+            ["don_vi_hien_tai", "src_Đơn vị tính hiện tại"],
+            [["đơn vị", "hiện tại"], ["don vi", "hien tai"]]
+          )
+        ),
     },
     {
       title: "ĐVT SAP",
       dataIndex: "don_vi_sap",
-      width: 120,
-      render: (v) => safeText(v),
+      width: 130,
+      render: (_, record) =>
+        safeText(
+          getCol(
+            record,
+            ["don_vi_sap", "src_Đơn vị tính chính(*) cho vào SAP"],
+            [["đơn vị", "sap"], ["don vi", "sap"]]
+          )
+        ),
     },
     {
-      title: "Loại / Group",
-      dataIndex: "material_group",
+      title: "Mã Dòng",
+      dataIndex: "ma_dong",
+      width: 110,
+      render: (_, record) =>
+        safeText(getCol(record, ["ma_dong", "material_type", "src_Mã Dòng"], [["mã dòng"], ["ma dong"]])),
+    },
+    {
+      title: "Mã Loại",
+      dataIndex: "ma_loai",
+      width: 110,
+      render: (_, record) =>
+        safeText(getCol(record, ["ma_loai", "material_group", "src_Mã Loại"], [["mã loại"], ["ma loai"]])),
+    },
+    {
+      title: "Mô tả Loại chuẩn hóa",
+      dataIndex: "mo_ta_loai",
+      width: 260,
+      render: (_, record) =>
+        safeText(
+          getCol(
+            record,
+            [
+              "mo_ta_loai_chuan_hoa",
+              "src_Mô tả Loại hàng hóa, dịch vụ CHUẨN HÓA",
+              "Mô tả Loại hàng hóa, dịch vụ CHUẨN HÓA",
+            ],
+            [["mô tả", "loại"], ["mo ta", "loai"]]
+          )
+        ),
+    },
+    {
+      title: "Mã tệp",
+      dataIndex: "ma_tep",
+      width: 110,
+      render: (_, record) =>
+        safeText(getCol(record, ["ma_tep", "src_Mã tệp CHUẨN HÓA"], [["mã tệp"], ["ma tep"]])),
+    },
+    {
+      title: "Mô tả Tệp chuẩn hóa",
+      dataIndex: "mo_ta_tep",
+      width: 260,
+      render: (_, record) =>
+        safeText(
+          getCol(
+            record,
+            [
+              "mo_ta_tep_chuan_hoa",
+              "src_Mô tả Tệp hàng hóa, dịch vụ CHUẨN HÓA",
+              "Mô tả Tệp hàng hóa, dịch vụ CHUẨN HÓA",
+            ],
+            [["mô tả", "tệp"], ["mo ta", "tep"]]
+          )
+        ),
+    },
+    {
+      title: "Ngành hàng",
+      dataIndex: "nganh_hang",
+      width: 130,
+      render: (_, record) =>
+        safeText(getCol(record, ["nganh_hang", "src_Ngành hàng"], [["ngành hàng"], ["nganh hang"]])),
+    },
+    {
+      title: "Trung tâm lợi nhuận",
+      dataIndex: "trung_tam_loi_nhuan",
+      width: 150,
+      render: (_, record) =>
+        safeText(getCol(record, ["trung_tam_loi_nhuan", "src_Trung tâm lợi nhuận"], [["trung tâm", "lợi nhuận"], ["trung tam", "loi nhuan"]])),
+    },
+    {
+      title: "Phân loại SAP",
+      dataIndex: "phan_loai_sap",
+      width: 160,
+      render: (_, record) =>
+        safeText(getCol(record, ["phan_loai_sap", "src_Phân loại hàng hóa trong SAP (*)"], [["phân loại", "sap"], ["phan loai", "sap"]])),
+    },
+    {
+      title: "Dòng hàng hóa",
+      dataIndex: "dong_hang_hoa",
+      width: 150,
+      render: (_, record) =>
+        safeText(getCol(record, ["dong_hang_hoa", "src_Dòng hàng hóa (*)"], [["dòng hàng"], ["dong hang"]])),
+    },
+    {
+      title: "Loại lô",
+      dataIndex: "loai_lo",
+      width: 120,
+      render: (_, record) =>
+        safeText(getCol(record, ["loai_lo", "src_Loại lô (*)"], [["loại lô"], ["loai lo"]])),
+    },
+    {
+      title: "TK hạch toán doanh thu",
+      dataIndex: "tk_doanh_thu",
       width: 180,
-      render: (v, record) =>
-        safeText(record.mo_ta_loai_chuan_hoa || record.material_group),
+      render: (_, record) =>
+        safeText(getCol(record, ["tk_doanh_thu", "src_Nhóm tài khoản hạch toán doanh thu (*)"], [["hạch toán", "doanh thu"], ["hach toan", "doanh thu"]])),
+    },
+    {
+      title: "TK hạch toán tự động",
+      dataIndex: "tk_tu_dong",
+      width: 180,
+      render: (_, record) =>
+        safeText(getCol(record, ["tk_tu_dong", "src_Nhóm tài khoản hạch toán tự động (*)"], [["hạch toán", "tự động"], ["hach toan", "tu dong"]])),
+    },
+    {
+      title: "Phương pháp tính giá",
+      dataIndex: "phuong_phap_tinh_gia",
+      width: 170,
+      render: (_, record) =>
+        safeText(getCol(record, ["phuong_phap_tinh_gia", "src_Phương pháp tính giá (*)"], [["phương pháp", "tính giá"], ["phuong phap", "tinh gia"]])),
     },
     {
       title: "Mã tương tự",
@@ -278,15 +515,17 @@ export default function UploadPage() {
   ];
 
   const rowClassName = (record) => {
-    if (record.status === "CAN_TAO_MOI_NHUNG_CAN_SUA") {
+    const status = normalizeStatus(record);
+
+    if (status === "CAN_TAO_MOI_NHUNG_CAN_SUA") {
       return "row-error";
     }
 
-    if (record.status === "CAN_TAO_MOI_CAN_XEM_LAI") {
+    if (status === "CAN_TAO_MOI_CAN_XEM_LAI") {
       return "row-warning";
     }
 
-    if (record.status === "CAN_TAO_MOI_DAT") {
+    if (status === "CAN_TAO_MOI_DAT") {
       return "row-ok";
     }
 
@@ -327,9 +566,7 @@ export default function UploadPage() {
             </Button>
           </Upload>
 
-          <Text type="secondary">
-            API: {API_URL || "Chưa cấu hình VITE_API_URL"}
-          </Text>
+
         </Space>
       </Card>
 
@@ -339,10 +576,7 @@ export default function UploadPage() {
           type={summary.type}
           showIcon
           message={summary.message}
-          description={
-            summary.hint ||
-            (summary.outputFile ? `Output: ${summary.outputFile}` : "")
-          }
+          description={summary.hint || ""}
         />
       ) : null}
 
@@ -384,7 +618,7 @@ export default function UploadPage() {
               pageSizeOptions: [10, 20, 50, 100],
               showTotal: (total) => `Tổng ${total} dòng`,
             }}
-            scroll={{ x: 2600, y: 600 }}
+            scroll={{ x: 4300, y: 600 }}
             bordered
             rowClassName={rowClassName}
             size="small"
